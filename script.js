@@ -1,42 +1,28 @@
-// XP data for each slayer type and tier
-const slayerData = {
-    revenant: {
-        name: "Revenant Horror",
-        tiers: [5, 25, 100, 500, 1500]
-    },
-    tarantula: {
-        name: "Tarantula Broodfather",
-        tiers: [5, 25, 100, 500, 3500]
-    },
-    sven: {
-        name: "Sven Packmaster",
-        tiers: [5, 25, 100, 500, 1500]
-    },
-    voidgloom: {
-        name: "Voidgloom Seraph",
-        tiers: [5, 25, 100, 500]
-    }
+// XP rewards per tier (single kill)
+const xpPerKill = {
+    revenant: [5, 25, 100, 500, 1500],
+    tarantula: [5, 25, 100, 500, 3500],
+    sven: [5, 25, 100, 500, 1500],
+    voidgloom: [5, 25, 100, 500]
 };
 
-// Total XP needed for each level
-const levelXpRequirements = {
-    0: 0,
-    1: 5,
-    2: 30,
-    3: 155,
-    4: 780,
-    5: 3905,
-    6: 19530,
-    7: 97655,
-    8: 488280,
-    9: 2441405
-};
+// Cumulative XP needed to reach each level from level 0
+const cumulativeXpPerLevel = [
+    0,        // Level 0
+    5,        // Level 1: 0 + 5
+    30,       // Level 2: 5 + 25
+    155,      // Level 3: 30 + 125
+    780,      // Level 4: 155 + 625
+    3905,     // Level 5: 780 + 3125
+    19530,    // Level 6: 3905 + 15625
+    97655,    // Level 7: 19530 + 78125
+    488280,   // Level 8: 97655 + 390625
+    2441405   // Level 9: 488280 + 1953125
+];
 
-// Voidgloom carry prices
-const voidgloomPrices = {
-    3: 800000,
-    4: 1500000
-};
+// Carry prices in coins
+const CARRY_PRICE_T3 = 800000;
+const CARRY_PRICE_T4 = 1500000;
 
 const quotes = [
     "Lightning fast carries, zero hassle! ⚡",
@@ -84,40 +70,6 @@ document.querySelectorAll('.nav-link').forEach(link => {
 });
 
 // Calculator functions
-function getTotalXpNeeded(currentLevel, targetLevel) {
-    return levelXpRequirements[targetLevel] - levelXpRequirements[currentLevel];
-}
-
-function getCheapestCarryMethod(slayerType, xpNeeded) {
-    const slayer = slayerData[slayerType];
-    if (!slayer || !slayer.tiers) return [];
-    
-    const tierXpRewards = slayer.tiers;
-    let method = [];
-    let remainingXp = xpNeeded;
-    let maxIterations = 10000; // Safety limit
-    let iterations = 0;
-    
-    // Greedy approach: use highest tier XP rewards first
-    while (remainingXp > 0 && iterations < maxIterations) {
-        iterations++;
-        let found = false;
-        
-        for (let i = tierXpRewards.length - 1; i >= 0; i--) {
-            if (tierXpRewards[i] <= remainingXp) {
-                method.push(i + 1);
-                remainingXp -= tierXpRewards[i];
-                found = true;
-                break;
-            }
-        }
-        
-        if (!found) break; // No suitable tier found
-    }
-    
-    return method;
-}
-
 function formatNumber(num) {
     if (num >= 1000000) {
         return (num / 1000000).toFixed(2) + 'M';
@@ -127,52 +79,128 @@ function formatNumber(num) {
     return num.toString();
 }
 
+function getXpNeeded(currentLevel, targetLevel) {
+    // Validate inputs
+    if (currentLevel < 0 || currentLevel > 9 || targetLevel < 0 || targetLevel > 9) {
+        return null;
+    }
+    if (currentLevel >= targetLevel) {
+        return null;
+    }
+    
+    const currentXp = cumulativeXpPerLevel[currentLevel];
+    const targetXp = cumulativeXpPerLevel[targetLevel];
+    
+    return targetXp - currentXp;
+}
+
+function calculateCarries(slayerType, xpNeeded) {
+    if (!xpPerKill[slayerType]) {
+        return null;
+    }
+    
+    const xpRewards = xpPerKill[slayerType];
+    const carries = [];
+    let remainingXp = xpNeeded;
+    
+    // Start from highest tier and work down
+    for (let tierIndex = xpRewards.length - 1; tierIndex >= 0 && remainingXp > 0; tierIndex--) {
+        const xpPerRun = xpRewards[tierIndex];
+        const numRuns = Math.floor(remainingXp / xpPerRun);
+        
+        if (numRuns > 0) {
+            carries.push({
+                tier: tierIndex + 1,
+                count: numRuns,
+                xpGained: numRuns * xpPerRun
+            });
+            remainingXp -= numRuns * xpPerRun;
+        }
+    }
+    
+    // Handle any remaining XP with tier 1 if needed
+    if (remainingXp > 0 && xpRewards[0] > 0) {
+        carries.push({
+            tier: 1,
+            count: 1,
+            xpGained: xpRewards[0]
+        });
+    }
+    
+    return carries;
+}
+
+function calculateTotalCost(carries) {
+    let totalCost = 0;
+    
+    for (let carry of carries) {
+        let pricePerRun;
+        if (carry.tier <= 3) {
+            pricePerRun = CARRY_PRICE_T3;
+        } else {
+            pricePerRun = CARRY_PRICE_T4;
+        }
+        totalCost += carry.count * pricePerRun;
+    }
+    
+    return totalCost;
+}
+
 function calculateCheapest() {
     const slayerType = document.getElementById('slayer-type').value;
     const currentLevel = parseInt(document.getElementById('current-level').value);
     const targetLevel = parseInt(document.getElementById('target-level').value);
+    const resultsDiv = document.getElementById('calc-results');
     
+    // Validate levels
     if (currentLevel >= targetLevel) {
-        alert('Target level must be higher than current level!');
+        document.getElementById('xp-needed').textContent = 'Error: Target level must be higher than current level!';
+        document.getElementById('cost-info').textContent = '';
+        document.getElementById('carry-breakdown').textContent = '';
+        resultsDiv.style.display = 'block';
         return;
     }
     
-    const totalXpNeeded = getTotalXpNeeded(currentLevel, targetLevel);
+    // Calculate XP needed
+    const xpNeeded = getXpNeeded(currentLevel, targetLevel);
     
-    if (totalXpNeeded <= 0) {
-        alert('Invalid level range!');
+    if (xpNeeded === null || xpNeeded <= 0) {
+        document.getElementById('xp-needed').textContent = 'Error: Invalid level range!';
+        document.getElementById('cost-info').textContent = '';
+        document.getElementById('carry-breakdown').textContent = '';
+        resultsDiv.style.display = 'block';
         return;
     }
     
-    const bestMethod = getCheapestCarryMethod(slayerType, totalXpNeeded);
+    // Calculate optimal carries
+    const carries = calculateCarries(slayerType, xpNeeded);
     
-    if (bestMethod.length === 0) {
-        alert('No viable carry combination found!');
+    if (!carries || carries.length === 0) {
+        document.getElementById('xp-needed').textContent = 'Error: Could not calculate carries!';
+        document.getElementById('cost-info').textContent = '';
+        document.getElementById('carry-breakdown').textContent = '';
+        resultsDiv.style.display = 'block';
         return;
-    }
-    
-    // Count tier occurrences
-    const tierCounts = {};
-    for (let tier of bestMethod) {
-        tierCounts[tier] = (tierCounts[tier] || 0) + 1;
     }
     
     // Calculate total cost
-    let totalCost = 0;
-    let breakdown = [];
+    const totalCost = calculateTotalCost(carries);
     
-    for (let tier in tierCounts) {
-        const count = tierCounts[tier];
-        const tierPrice = tier <= 3 ? 800000 : 1500000;
-        const tierCost = count * tierPrice;
-        totalCost += tierCost;
-        breakdown.push(`T${tier}: ${count}x (${formatNumber(tierCost)})`);
+    // Build breakdown string
+    let breakdownStr = '';
+    for (let i = 0; i < carries.length; i++) {
+        const carry = carries[i];
+        const price = carry.tier <= 3 ? CARRY_PRICE_T3 : CARRY_PRICE_T4;
+        const subtotal = carry.count * price;
+        
+        if (i > 0) breakdownStr += ' + ';
+        breakdownStr += `T${carry.tier}: ${carry.count}x (${formatNumber(subtotal)})`;
     }
     
-    const resultsDiv = document.getElementById('calc-results');
-    document.getElementById('xp-needed').textContent = `XP Needed: ${formatNumber(totalXpNeeded)}`;
+    // Display results
+    document.getElementById('xp-needed').textContent = `XP Needed: ${formatNumber(xpNeeded)}`;
     document.getElementById('cost-info').textContent = `Total Cost: ${formatNumber(totalCost)}`;
-    document.getElementById('carry-breakdown').textContent = `Breakdown: ${breakdown.join(' + ')}`;
+    document.getElementById('carry-breakdown').textContent = `Breakdown: ${breakdownStr}`;
     
     resultsDiv.style.display = 'block';
 }
