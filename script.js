@@ -92,47 +92,28 @@ function getCheapestCarryMethod(slayerType, xpNeeded) {
     const slayer = slayerData[slayerType];
     const tierXpRewards = slayer.tiers;
     
-    let bestMethod = [];
-    let bestCost = Infinity;
+    // Greedy approach: use highest tier XP rewards first for efficiency
+    let method = [];
+    let remainingXp = xpNeeded;
     
-    // Try all combinations of tiers
-    function findBestCombination(remainingXp, currentMethod) {
-        if (remainingXp <= 0) {
-            const cost = calculateCost(currentMethod);
-            if (cost < bestCost) {
-                bestCost = cost;
-                bestMethod = [...currentMethod];
-            }
-            return;
-        }
+    for (let i = tierXpRewards.length - 1; i >= 0 && remainingXp > 0; i--) {
+        const tierXp = tierXpRewards[i];
+        const count = Math.floor(remainingXp / tierXp);
         
-        // Try each tier starting from highest
-        for (let i = tierXpRewards.length - 1; i >= 0; i--) {
-            if (tierXpRewards[i] <= remainingXp) {
-                currentMethod.push(i + 1);
-                findBestCombination(remainingXp - tierXpRewards[i], currentMethod);
-                currentMethod.pop();
+        if (count > 0) {
+            for (let j = 0; j < count; j++) {
+                method.push(i + 1);
             }
+            remainingXp -= count * tierXp;
         }
     }
     
-    findBestCombination(xpNeeded, []);
-    
-    return bestMethod;
-}
-
-function calculateCost(method) {
-    // For voidgloom carries, use the provided prices
-    // T4 carries give the best XP per cost
-    let cost = 0;
-    for (let tier of method) {
-        if (tier <= 4) {
-            cost += voidgloomPrices[3] || 800000; // Use T3 price for T1-T3
-        } else {
-            cost += voidgloomPrices[4] || 1500000; // T4 price
-        }
+    // If there's remaining XP, use tier 1
+    if (remainingXp > 0) {
+        method.push(1);
     }
-    return cost;
+    
+    return method;
 }
 
 function formatNumber(num) {
