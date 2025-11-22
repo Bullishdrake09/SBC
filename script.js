@@ -20,15 +20,16 @@ const slayerData = {
 
 // Total XP needed for each level
 const levelXpRequirements = {
-    1: 0,
-    2: 5,
-    3: 25,
-    4: 125,
-    5: 625,
-    6: 3125,
-    7: 15625,
-    8: 78125,
-    9: 390625
+    0: 0,
+    1: 5,
+    2: 30,
+    3: 155,
+    4: 780,
+    5: 3905,
+    6: 19530,
+    7: 97655,
+    8: 488280,
+    9: 2441405
 };
 
 // Voidgloom carry prices
@@ -84,11 +85,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
 // Calculator functions
 function getTotalXpNeeded(currentLevel, targetLevel) {
-    let totalXp = 0;
-    for (let i = currentLevel; i < targetLevel; i++) {
-        totalXp += levelXpRequirements[i + 1] - levelXpRequirements[i];
-    }
-    return totalXp;
+    return levelXpRequirements[targetLevel] - levelXpRequirements[currentLevel];
 }
 
 function getCheapestCarryMethod(slayerType, xpNeeded) {
@@ -158,7 +155,18 @@ function calculateCheapest() {
     }
     
     const totalXpNeeded = getTotalXpNeeded(currentLevel, targetLevel);
+    
+    if (totalXpNeeded <= 0) {
+        alert('Invalid level range!');
+        return;
+    }
+    
     const bestMethod = getCheapestCarryMethod(slayerType, totalXpNeeded);
+    
+    if (bestMethod.length === 0) {
+        alert('No viable carry combination found!');
+        return;
+    }
     
     // Count tier occurrences
     const tierCounts = {};
