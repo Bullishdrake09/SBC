@@ -1,23 +1,20 @@
-// XP rewards per tier (single kill)
+// XP rewards per tier (single kill) - Only T3 and T4 for Voidgloom Seraph
 const xpPerKill = {
-    revenant: [5, 25, 100, 500, 1500],
-    tarantula: [5, 25, 100, 500, 3500],
-    sven: [5, 25, 100, 500, 1500],
-    voidgloom: [5, 25, 100, 500]
+    voidgloom: [100, 500] // T3 = 100 XP, T4 = 500 XP (indexes 0, 1)
 };
 
-// Cumulative XP needed to reach each level from level 0
-const cumulativeXpPerLevel = [
-    0,        // Level 0
-    5,        // Level 1: 0 + 5
-    30,       // Level 2: 5 + 25
-    155,      // Level 3: 30 + 125
-    780,      // Level 4: 155 + 625
-    3905,     // Level 5: 780 + 3125
-    19530,    // Level 6: 3905 + 15625
-    97655,    // Level 7: 19530 + 78125
-    488280,   // Level 8: 97655 + 390625
-    2441405   // Level 9: 488280 + 1953125
+// XP needed to reach each level (not cumulative)
+const xpToReachLevel = [
+    0,        // Level 0: 0 XP
+    5,        // Level 1: 5 XP
+    15,       // Level 2: 15 XP
+    200,      // Level 3: 200 XP
+    1000,     // Level 4: 1000 XP
+    5000,     // Level 5: 5000 XP
+    20000,    // Level 6: 20000 XP
+    100000,   // Level 7: 100000 XP
+    400000,   // Level 8: 400000 XP
+    1000000   // Level 9: 1000000 XP
 ];
 
 // Carry prices in coins
@@ -88,8 +85,9 @@ function getXpNeeded(currentLevel, targetLevel) {
         return null;
     }
     
-    const currentXp = cumulativeXpPerLevel[currentLevel];
-    const targetXp = cumulativeXpPerLevel[targetLevel];
+    // Calculate the difference in XP needed
+    const currentXp = currentLevel === 0 ? 0 : xpToReachLevel[currentLevel];
+    const targetXp = xpToReachLevel[targetLevel];
     
     return targetXp - currentXp;
 }
@@ -103,14 +101,14 @@ function calculateCarries(slayerType, xpNeeded) {
     const carries = [];
     let remainingXp = xpNeeded;
     
-    // Start from highest tier and work down
+    // Start from highest tier (T4) and work down to T3
     for (let tierIndex = xpRewards.length - 1; tierIndex >= 0 && remainingXp > 0; tierIndex--) {
         const xpPerRun = xpRewards[tierIndex];
         const numRuns = Math.floor(remainingXp / xpPerRun);
         
         if (numRuns > 0) {
             carries.push({
-                tier: tierIndex + 1,
+                tier: tierIndex + 3, // T3, T4 (indexes 0,1 -> tiers 3,4)
                 count: numRuns,
                 xpGained: numRuns * xpPerRun
             });
@@ -118,13 +116,23 @@ function calculateCarries(slayerType, xpNeeded) {
         }
     }
     
-    // Handle any remaining XP with tier 1 if needed
-    if (remainingXp > 0 && xpRewards[0] > 0) {
-        carries.push({
-            tier: 1,
-            count: 1,
-            xpGained: xpRewards[0]
-        });
+    // Handle any remaining XP by adding to the lowest tier (T3) if needed
+    if (remainingXp > 0) {
+        // Check if we already have T3 runs
+        const existingT3 = carries.find(carry => carry.tier === 3);
+        
+        if (existingT3) {
+            // Add one more T3 run to the existing entry
+            existingT3.count += 1;
+            existingT3.xpGained += xpRewards[0]; // Add T3 XP
+        } else {
+            // Create a new T3 entry
+            carries.push({
+                tier: 3,
+                count: 1,
+                xpGained: xpRewards[0] // T3 XP
+            });
+        }
     }
     
     return carries;
@@ -135,9 +143,9 @@ function calculateTotalCost(carries) {
     
     for (let carry of carries) {
         let pricePerRun;
-        if (carry.tier <= 3) {
+        if (carry.tier === 3) {
             pricePerRun = CARRY_PRICE_T3;
-        } else {
+        } else if (carry.tier === 4) {
             pricePerRun = CARRY_PRICE_T4;
         }
         totalCost += carry.count * pricePerRun;
@@ -147,7 +155,6 @@ function calculateTotalCost(carries) {
 }
 
 function calculateCheapest() {
-    const slayerType = document.getElementById('slayer-type').value;
     const currentLevel = parseInt(document.getElementById('current-level').value);
     const targetLevel = parseInt(document.getElementById('target-level').value);
     const resultsDiv = document.getElementById('calc-results');
@@ -173,7 +180,7 @@ function calculateCheapest() {
     }
     
     // Calculate optimal carries
-    const carries = calculateCarries(slayerType, xpNeeded);
+    const carries = calculateCarries('voidgloom', xpNeeded);
     
     if (!carries || carries.length === 0) {
         document.getElementById('xp-needed').textContent = 'Error: Could not calculate carries!';
@@ -190,7 +197,10 @@ function calculateCheapest() {
     let breakdownStr = '';
     for (let i = 0; i < carries.length; i++) {
         const carry = carries[i];
-        const price = carry.tier <= 3 ? CARRY_PRICE_T3 : CARRY_PRICE_T4;
+        let price;
+        if (carry.tier === 3) price = CARRY_PRICE_T3;
+        else if (carry.tier === 4) price = CARRY_PRICE_T4;
+        
         const subtotal = carry.count * price;
         
         if (i > 0) breakdownStr += ' + ';
@@ -207,7 +217,11 @@ function calculateCheapest() {
 
 // Allow Enter key to calculate
 document.addEventListener('DOMContentLoaded', function() {
-    const inputs = document.querySelectorAll('#slayer-type, #current-level, #target-level');
+    // Set default values
+    document.getElementById('current-level').value = 0;
+    document.getElementById('target-level').value = 5;
+    
+    const inputs = document.querySelectorAll('#current-level, #target-level');
     inputs.forEach(input => {
         input.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
