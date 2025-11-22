@@ -90,27 +90,29 @@ function getTotalXpNeeded(currentLevel, targetLevel) {
 
 function getCheapestCarryMethod(slayerType, xpNeeded) {
     const slayer = slayerData[slayerType];
-    const tierXpRewards = slayer.tiers;
+    if (!slayer || !slayer.tiers) return [];
     
-    // Greedy approach: use highest tier XP rewards first for efficiency
+    const tierXpRewards = slayer.tiers;
     let method = [];
     let remainingXp = xpNeeded;
+    let maxIterations = 10000; // Safety limit
+    let iterations = 0;
     
-    for (let i = tierXpRewards.length - 1; i >= 0 && remainingXp > 0; i--) {
-        const tierXp = tierXpRewards[i];
-        const count = Math.floor(remainingXp / tierXp);
+    // Greedy approach: use highest tier XP rewards first
+    while (remainingXp > 0 && iterations < maxIterations) {
+        iterations++;
+        let found = false;
         
-        if (count > 0) {
-            for (let j = 0; j < count; j++) {
+        for (let i = tierXpRewards.length - 1; i >= 0; i--) {
+            if (tierXpRewards[i] <= remainingXp) {
                 method.push(i + 1);
+                remainingXp -= tierXpRewards[i];
+                found = true;
+                break;
             }
-            remainingXp -= count * tierXp;
         }
-    }
-    
-    // If there's remaining XP, use tier 1
-    if (remainingXp > 0) {
-        method.push(1);
+        
+        if (!found) break; // No suitable tier found
     }
     
     return method;
