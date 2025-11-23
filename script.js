@@ -44,6 +44,19 @@ function rotateQuote() {
 
 setInterval(rotateQuote, 5000);
 
+// Hamburger menu toggle
+function initHamburger() {
+    const hamburger = document.querySelector('.hamburger');
+    const nav = document.querySelector('nav');
+    
+    if (hamburger) {
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            nav.classList.toggle('active');
+        });
+    }
+}
+
 // Navigation
 function navigateTo(page) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -55,6 +68,14 @@ function navigateTo(page) {
             link.classList.add('active');
         }
     });
+
+    // Close hamburger menu on navigation
+    const hamburger = document.querySelector('.hamburger');
+    const nav = document.querySelector('nav');
+    if (hamburger && hamburger.classList.contains('active')) {
+        hamburger.classList.remove('active');
+        nav.classList.remove('active');
+    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -215,8 +236,11 @@ function calculateCheapest() {
     resultsDiv.style.display = 'block';
 }
 
-// Allow Enter key to calculate
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize hamburger menu
+    initHamburger();
+    
     // Set default values
     document.getElementById('current-level').value = 0;
     document.getElementById('target-level').value = 5;
